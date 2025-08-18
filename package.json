@@ -1,0 +1,33 @@
+{
+  "name": "ewu-alumni-list",
+  "version": "1.0.0",
+  "description": "Official directory of East West University alumni",
+  "main": "index.js",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "docs:serve": "vitepress serve docs"
+  },
+  "keywords": [
+    "ewu",
+    "alumni",
+    "directory",
+    "east-west-university",
+    "networking",
+    "bangladesh"
+  ],
+  "author": "EWU Alumni Association",
+  "license": "MIT",
+  "devDependencies": {
+    "vitepress": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ewu-alumni/ewu-alumni.github.io.git"
+  },
+  "homepage": "https://ewu-alumni.github.io/",
+  "bugs": {
+    "url": "https://github.com/ewu-alumni/ewu-alumni.github.io/issues"
+  }
+}
