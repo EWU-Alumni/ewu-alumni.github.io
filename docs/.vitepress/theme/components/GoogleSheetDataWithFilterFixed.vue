@@ -1,39 +1,9 @@
-<template>
-  <div id="sheet-container">
-    <div class="controls">
-      <!-- <button id="reload-btn" @click="loadSheetData">Reload Data</button> -->
-      
-      <div class="search-section">
-        <select id="department-filter" v-model="selectedDepartment">
-          <option value="">All Departments</option>
-          <option v-for="(label, code) in departments" :key="code" :value="code">
-            {{ label }}
-          </option>
-        </select>
-        
-        <input 
-          type="text" 
-          id="search-input" 
-          v-model="searchQuery" 
-          placeholder="Search by name, email, or any field..."
-          class="search-bar"
-        />
-        
-        <button id="search-btn" @click="performSearch" class="search-button">
-          Search
-        </button>
-        
-        <button id="clear-btn" @click="clearSearch" class="clear-button">
-          Clear
-        </button>
-      </div>
-    </div>
-    <div id="sheet-data">Loading...</div>
-  </div>
+<template src="./GoogleSheetDataWithFilterFixed.html">
 </template>
 
+
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 
 // Department enum mapping
 const departments = {
@@ -55,89 +25,116 @@ const departments = {
 };
 
 // Configuration - Replace with your actual Google Sheet ID
-const SHEET_ID = "1rP4OecQP5PCFuie9bzWb50fTGSvEF8nE7Dw5e8NveNY"; // Demo sheet ID
+const SHEET_ID = "1rP4OecQP5PCFuie9bzWb50fTGSvEF8nE7Dw5e8NveNY";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
-const sheetDataRef = ref(null);
+// Reactive data
+const loading = ref(true);
+const error = ref(null);
 const selectedDepartment = ref('');
 const searchQuery = ref('');
 const allData = ref([]);
-let jsonData = null;
+const filteredData = ref([]);
+const tableHeaders = ref([]);
+const sortColumn = ref(null);
+const sortDirection = ref('asc');
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
 
+// Computed properties
+const totalPages = computed(() => Math.ceil(filteredData.value.length / itemsPerPage.value));
+
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredData.value.slice(start, end);
+});
+
+// Watchers
+watch([selectedDepartment, searchQuery], () => {
+  filterData();
+  currentPage.value = 1;
+});
+
+// Methods
 async function loadSheetData() {
   console.log("Loading sheet data...")
-  
-  const container = sheetDataRef.value;
-  
-  if (!container) {
-    console.error('Container element not found');
-    return;
-  }
+  loading.value = true;
+  error.value = null;
 
   try {
-    container.innerHTML = '<div class="loading">Loading data from Google Sheets...</div>';
-    
     const response = await fetch(SHEET_URL);
     const text = await response.text();
-
-    // Parse the JSON response (Google Sheets returns JSON wrapped in a callback)
-    jsonData = JSON.parse(text.substring(47).slice(0, -2));
-    const rows = jsonData.table.rows;
     
-    if (!rows || rows.length === 0) {
-      console.log("No data found in the spreadsheet")
-      container.innerHTML = '<div class="error">No data found in the spreadsheet.</div>';
+    // Parse the JSON response (Google Sheets returns JSON wrapped in a callback)
+    const jsonData = JSON.parse(text.substring(47).slice(0, -2));
+    
+    if (!jsonData.table || !jsonData.table.rows || jsonData.table.rows.length === 0) {
+      error.value = "No data found in the spreadsheet";
       return;
     }
 
-    // Store all data for filtering
-    allData.value = rows;
-    filterData();
+    // Extract headers
+    tableHeaders.value = jsonData.table.cols.slice(1).map(col => col.label || '');
 
-  } catch (error) {
-    console.error('Error loading sheet data:', error);
-    if (container) {
-      container.innerHTML = `
-        <div class="error">
-          <strong>Error loading data:</strong><br>
-          ${error.message}<br>
-          <small>Please check if the Google Sheet ID is correct and the sheet is publicly accessible.</small>
-        </div>
-      `;
-    }
+    // Process data
+    allData.value = jsonData.table.rows.map(row => {
+      return row.c.slice(1).map(cell => cell ? cell.v || '' : '');
+    });
+
+    filteredData.value = [...allData.value];
+    
+  } catch (err) {
+    console.error('Error loading sheet data:', err);
+    error.value = err.message || 'Failed to load data';
+  } finally {
+    loading.value = false;
   }
 }
 
 function filterData() {
-  const container = sheetDataRef.value;
-  if (!container || !allData.value.length) return;
+  let data = [...allData.value];
 
-  let dataToShow = allData.value;
-
-  // Filter by department if selected
+  // Filter by department
   if (selectedDepartment.value) {
     const departmentName = departments[selectedDepartment.value];
-    dataToShow = dataToShow.filter(row => {
-      // Check all columns for department match
-      return row.c.some(cell => 
-        cell && cell.v && 
-        cell.v.toString().toLowerCase().includes(departmentName.toLowerCase())
+    const departmentIndex = tableHeaders.value.findIndex(h => 
+      h.toLowerCase().includes('department') || h.toLowerCase().includes('dept')
+    );
+    
+    if (departmentIndex !== -1) {
+      data = data.filter(row => 
+        row[departmentIndex] && 
+        row[departmentIndex].toString().toLowerCase().includes(departmentName.toLowerCase())
       );
-    });
+    }
   }
 
-  // Filter by search query if provided
+  // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    dataToShow = dataToShow.filter(row => {
-      return row.c.some(cell => 
-        cell && cell.v && 
-        cell.v.toString().toLowerCase().includes(query)
-      );
+    data = data.filter(row => 
+      row.some(cell => 
+        cell && cell.toString().toLowerCase().includes(query)
+      )
+    );
+  }
+
+  // Apply sorting
+  if (sortColumn.value !== null) {
+    data.sort((a, b) => {
+      const aVal = a[sortColumn.value] || '';
+      const bVal = b[sortColumn.value] || '';
+      
+      if (sortDirection.value === 'asc') {
+        return aVal.toString().localeCompare(bVal.toString());
+      } else {
+        return bVal.toString().localeCompare(aVal.toString());
+      }
     });
   }
 
-  displayData(dataToShow);
+  filteredData.value = data;
 }
 
 function performSearch() {
@@ -147,138 +144,35 @@ function performSearch() {
 function clearSearch() {
   searchQuery.value = '';
   selectedDepartment.value = '';
-  displayData(allData.value);
+  currentPage.value = 1;
 }
 
-function displayData(data) {
-  const container = sheetDataRef.value;
-  if (!container) return;
-
-  if (data.length === 0) {
-    container.innerHTML = '<div class="error">No data found for the selected department.</div>';
-    return;
+function sortBy(columnIndex) {
+  if (sortColumn.value === columnIndex) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortColumn.value = columnIndex;
+    sortDirection.value = 'asc';
   }
+  filterData();
+}
 
-  // Build HTML table
-  let html = '<table class="sheet-table">';
-
-  // Add table headers from JSON labels (skip first column)
-  const labels = jsonData.table.cols;
-  if (labels && labels.length > 0) {
-    html += '<thead><tr>';
-    // Skip first column (index 0) and use labels from index 1 onwards
-    labels.slice(1).forEach(label => {
-      const value = label ? (label.label || '') : '';
-      html += `<th>${value}</th>`;
-    });
-    html += '</tr></thead>';
+function previousPage() {
+  if (currentPage.value > 1) {
+    currentPage.value--;
   }
+}
 
-  // Add table body
-  html += '<tbody>';
-  
-  data.forEach(row => {
-    html += '<tr>';
-    // Skip first column (index 0) and start from index 1
-    if (row.c && row.c.length > 1) {
-      row.c.slice(1).forEach(cell => {
-        const value = cell ? (cell.v || '') : '';
-        html += `<td>${value}</td>`;
-      });
-    }
-    html += '</tr>';
-  });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
+function nextPage() {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+  }
 }
 
 onMounted(() => {
-  sheetDataRef.value = document.getElementById('sheet-data');
   loadSheetData();
 })
 </script>
 
-<style>
-  #sheet-container {
-    margin: 2rem 0;
-  }
 
-  .controls {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-  }
-
-  #reload-btn {
-    padding: 8px 16px;
-    border: 1px solid #0b8059;
-    border-radius: 4px;
-    background: #0b8059;
-    color: white;
-    cursor: pointer;
-    font-size: 14px;
-  }
-
-  #reload-btn:hover {
-    background: #047857;
-  }
-
-  #department-filter {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    min-width: 250px;
-  }
-
-  .sheet-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-  }
-
-  .sheet-table th,
-  .sheet-table td {
-    border: 1px solid #ddd;
-    padding: 12px;
-    text-align: left;
-  }
-
-  .sheet-table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-  }
-
-  .sheet-table tr:nth-child(even) {
-    background-color: #f8f9fa;
-  }
-
-  .loading {
-    padding: 20px;
-    text-align: center;
-    color: #666;
-  }
-
-  .error {
-    padding: 20px;
-    text-align: center;
-    color: #dc3545;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    border-radius: 4px;
-  }
-
-  @media (max-width: 768px) {
-    .controls {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    
-    #department-filter {
-      min-width: auto;
-    }
-  }
-</style>
+<style scoped src="./GoogleSheetDataWithFilterFixed.css"></style>
