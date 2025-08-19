@@ -1,8 +1,8 @@
 import DefaultTheme from 'vitepress/theme'
 import CustomViewsCounter from './components/CustomViewsCounter.vue'
-import GoogleSheetData from './components/GoogleSheetData.vue'
+import GoogleSheetData from './components/GoogleSheetDataWithFilterFixed.vue'
 
-import './custom.css'
+// import './custom.css'
 
 export default {
   extends: DefaultTheme,

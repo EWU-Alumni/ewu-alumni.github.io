@@ -1,13 +1,32 @@
 <template>
   <div id="sheet-container">
     <div class="controls">
-      <button id="reload-btn" @click="loadSheetData">Reload Data</button>
-      <select id="department-filter" v-model="selectedDepartment" @change="filterData">
-        <option value="">All Departments</option>
-        <option v-for="(label, code) in departments" :key="code" :value="code">
-          {{ label }}
-        </option>
-      </select>
+      <!-- <button id="reload-btn" @click="loadSheetData">Reload Data</button> -->
+      
+      <div class="search-section">
+        <select id="department-filter" v-model="selectedDepartment">
+          <option value="">All Departments</option>
+          <option v-for="(label, code) in departments" :key="code" :value="code">
+            {{ label }}
+          </option>
+        </select>
+        
+        <input 
+          type="text" 
+          id="search-input" 
+          v-model="searchQuery" 
+          placeholder="Search by name, email, or any field..."
+          class="search-bar"
+        />
+        
+        <button id="search-btn" @click="performSearch" class="search-button">
+          Search
+        </button>
+        
+        <button id="clear-btn" @click="clearSearch" class="clear-button">
+          Clear
+        </button>
+      </div>
     </div>
     <div id="sheet-data">Loading...</div>
   </div>
@@ -41,6 +60,7 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 
 const sheetDataRef = ref(null);
 const selectedDepartment = ref('');
+const searchQuery = ref('');
 const allData = ref([]);
 let jsonData = null;
 
@@ -97,7 +117,7 @@ function filterData() {
   // Filter by department if selected
   if (selectedDepartment.value) {
     const departmentName = departments[selectedDepartment.value];
-    dataToShow = allData.value.filter(row => {
+    dataToShow = dataToShow.filter(row => {
       // Check all columns for department match
       return row.c.some(cell => 
         cell && cell.v && 
@@ -106,7 +126,28 @@ function filterData() {
     });
   }
 
+  // Filter by search query if provided
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    dataToShow = dataToShow.filter(row => {
+      return row.c.some(cell => 
+        cell && cell.v && 
+        cell.v.toString().toLowerCase().includes(query)
+      );
+    });
+  }
+
   displayData(dataToShow);
+}
+
+function performSearch() {
+  filterData();
+}
+
+function clearSearch() {
+  searchQuery.value = '';
+  selectedDepartment.value = '';
+  displayData(allData.value);
 }
 
 function displayData(data) {
