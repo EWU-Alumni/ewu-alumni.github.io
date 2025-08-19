@@ -39,7 +39,7 @@ const tableHeaders = ref([]);
 const sortColumn = ref(null);
 const sortDirection = ref('asc');
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(100);
 
 // Computed properties
 const totalPages = computed(() => Math.ceil(filteredData.value.length / itemsPerPage.value));
