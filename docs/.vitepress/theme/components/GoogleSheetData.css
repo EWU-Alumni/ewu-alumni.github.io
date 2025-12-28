@@ -348,6 +348,11 @@
   font-size: 0.875rem;
 }
 
+.table-row {
+  border-right: 1px solid var(--vp-c-divider);
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
 .social-links {
   display: flex;
   gap: 8px;

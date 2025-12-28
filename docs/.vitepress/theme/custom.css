@@ -68,11 +68,17 @@
 /* Article styling */
 article {
   background: var(--vp-c-bg-soft);
-  /* border: 1px solid var(--vp-c-divider); */
+  border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   padding: 1.5rem;
   margin: 1.5rem 0;
   transition: all 0.2s ease;
+}
+
+.vp-doc, .table-row, .table-row {
+  border-right: 1px solid #e2e2e3;
+  border-bottom: 1px solid var(--vp-c-divider);
+
 }
 
 article:hover {
